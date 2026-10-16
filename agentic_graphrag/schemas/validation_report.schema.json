@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-graphrag/schemas/stage1/1.0.0/validation_report.schema.json",
+  "$defs": {
+    "CheckJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "passed",
+        "severity",
+        "reasons"
+      ],
+      "title": "CheckJSON",
+      "type": "object"
+    },
+    "ValidationCategory": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "weight": {
+          "minimum": 0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/CheckJSON"
+          },
+          "title": "Checks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "weight",
+        "score",
+        "checks"
+      ],
+      "title": "ValidationCategory",
+      "type": "object"
+    },
+    "ValidationStatistics": {
+      "additionalProperties": false,
+      "properties": {
+        "validation_accuracy": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Validation Accuracy",
+          "type": "number"
+        },
+        "total_errors": {
+          "minimum": 0,
+          "title": "Total Errors",
+          "type": "integer"
+        },
+        "warnings": {
+          "minimum": 0,
+          "title": "Warnings",
+          "type": "integer"
+        },
+        "passed_checks": {
+          "minimum": 0,
+          "title": "Passed Checks",
+          "type": "integer"
+        },
+        "total_checks": {
+          "minimum": 0,
+          "title": "Total Checks",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "validation_accuracy",
+        "total_errors",
+        "warnings",
+        "passed_checks",
+        "total_checks"
+      ],
+      "title": "ValidationStatistics",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "V: global validation report.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "approved": {
+      "title": "Approved",
+      "type": "boolean"
+    },
+    "quality_score": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Quality Score",
+      "type": "number"
+    },
+    "categories": {
+      "items": {
+        "$ref": "#/$defs/ValidationCategory"
+      },
+      "title": "Categories",
+      "type": "array"
+    },
+    "statistics": {
+      "$ref": "#/$defs/ValidationStatistics"
+    },
+    "recommendations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Recommendations",
+      "type": "array"
+    },
+    "agent_errors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Agent Errors",
+      "type": "array"
+    }
+  },
+  "required": [
+    "document_id",
+    "generated_at",
+    "approved",
+    "quality_score",
+    "categories",
+    "statistics",
+    "recommendations",
+    "agent_errors"
+  ],
+  "title": "ValidationReport",
+  "type": "object"
+}

@@ -1,0 +1,1108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-graphrag/schemas/stage1/1.0.0/document.schema.json",
+  "$defs": {
+    "AbbreviationJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "abbreviation": {
+          "title": "Abbreviation",
+          "type": "string"
+        },
+        "expansion": {
+          "title": "Expansion",
+          "type": "string"
+        },
+        "occurrences": {
+          "title": "Occurrences",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "abbreviation",
+        "expansion",
+        "occurrences"
+      ],
+      "title": "AbbreviationJSON",
+      "type": "object"
+    },
+    "BBoxJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "w": {
+          "title": "W",
+          "type": "number"
+        },
+        "h": {
+          "title": "H",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "title": "BBoxJSON",
+      "type": "object"
+    },
+    "ChunkJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_id": {
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "order": {
+          "title": "Order",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "page_start": {
+          "title": "Page Start",
+          "type": "integer"
+        },
+        "page_end": {
+          "title": "Page End",
+          "type": "integer"
+        },
+        "token_count": {
+          "title": "Token Count",
+          "type": "integer"
+        },
+        "previous_chunk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previous Chunk"
+        },
+        "next_chunk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next Chunk"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "order",
+        "text",
+        "page_start",
+        "page_end",
+        "token_count",
+        "previous_chunk",
+        "next_chunk",
+        "summary"
+      ],
+      "title": "ChunkJSON",
+      "type": "object"
+    },
+    "ConfidenceJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "level": {
+          "enum": [
+            "High",
+            "Medium",
+            "Low"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "components": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Components",
+          "type": "object"
+        }
+      },
+      "required": [
+        "score",
+        "level",
+        "components"
+      ],
+      "title": "ConfidenceJSON",
+      "type": "object"
+    },
+    "CrossReferenceJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "reference_id": {
+          "title": "Reference Id",
+          "type": "string"
+        },
+        "citation_type": {
+          "title": "Citation Type",
+          "type": "string"
+        },
+        "source_element": {
+          "title": "Source Element",
+          "type": "string"
+        },
+        "target_object": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Target Object"
+        },
+        "target_section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Target Section"
+        },
+        "status": {
+          "enum": [
+            "resolved",
+            "unresolved"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "suggestion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Suggestion"
+        }
+      },
+      "required": [
+        "reference_id",
+        "citation_type",
+        "source_element",
+        "target_object",
+        "target_section",
+        "status",
+        "suggestion"
+      ],
+      "title": "CrossReferenceJSON",
+      "type": "object"
+    },
+    "DocumentInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "document_type": {
+          "enum": [
+            "PDF",
+            "DOCX",
+            "IMAGE"
+          ],
+          "title": "Document Type",
+          "type": "string"
+        },
+        "document_category": {
+          "title": "Document Category",
+          "type": "string"
+        },
+        "category_confidence": {
+          "title": "Category Confidence",
+          "type": "number"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        },
+        "author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Author"
+        },
+        "creation_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Creation Date"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "total_pages": {
+          "minimum": 0,
+          "title": "Total Pages",
+          "type": "integer"
+        },
+        "file_size_bytes": {
+          "minimum": 0,
+          "title": "File Size Bytes",
+          "type": "integer"
+        },
+        "mime_type": {
+          "title": "Mime Type",
+          "type": "string"
+        },
+        "source_file": {
+          "title": "Source File",
+          "type": "string"
+        },
+        "processing_timestamp": {
+          "title": "Processing Timestamp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document_id",
+        "document_type",
+        "document_category",
+        "category_confidence",
+        "title",
+        "author",
+        "creation_date",
+        "language",
+        "total_pages",
+        "file_size_bytes",
+        "mime_type",
+        "source_file",
+        "processing_timestamp"
+      ],
+      "title": "DocumentInfo",
+      "type": "object"
+    },
+    "DocumentStatistics": {
+      "additionalProperties": false,
+      "properties": {
+        "total_sections": {
+          "minimum": 0,
+          "title": "Total Sections",
+          "type": "integer"
+        },
+        "total_subsections": {
+          "minimum": 0,
+          "title": "Total Subsections",
+          "type": "integer"
+        },
+        "total_tables": {
+          "minimum": 0,
+          "title": "Total Tables",
+          "type": "integer"
+        },
+        "total_figures": {
+          "minimum": 0,
+          "title": "Total Figures",
+          "type": "integer"
+        },
+        "total_equations": {
+          "minimum": 0,
+          "title": "Total Equations",
+          "type": "integer"
+        },
+        "total_entities": {
+          "minimum": 0,
+          "title": "Total Entities",
+          "type": "integer"
+        },
+        "total_abbreviations": {
+          "minimum": 0,
+          "title": "Total Abbreviations",
+          "type": "integer"
+        },
+        "total_cross_references": {
+          "minimum": 0,
+          "title": "Total Cross References",
+          "type": "integer"
+        },
+        "total_chunks": {
+          "minimum": 0,
+          "title": "Total Chunks",
+          "type": "integer"
+        },
+        "total_words": {
+          "minimum": 0,
+          "title": "Total Words",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_sections",
+        "total_subsections",
+        "total_tables",
+        "total_figures",
+        "total_equations",
+        "total_entities",
+        "total_abbreviations",
+        "total_cross_references",
+        "total_chunks",
+        "total_words"
+      ],
+      "title": "DocumentStatistics",
+      "type": "object"
+    },
+    "EntityJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "entity_id": {
+          "title": "Entity Id",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "page": {
+          "title": "Page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entity_id",
+        "type",
+        "name",
+        "description",
+        "page"
+      ],
+      "title": "EntityJSON",
+      "type": "object"
+    },
+    "EquationJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "equation_id": {
+          "title": "Equation Id",
+          "type": "string"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Number"
+        },
+        "latex": {
+          "title": "Latex",
+          "type": "string"
+        },
+        "page": {
+          "title": "Page",
+          "type": "integer"
+        },
+        "bbox": {
+          "$ref": "#/$defs/BBoxJSON"
+        },
+        "equation_type": {
+          "title": "Equation Type",
+          "type": "string"
+        },
+        "variables": {
+          "items": {
+            "$ref": "#/$defs/EquationVariableJSON"
+          },
+          "title": "Variables",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "approved": {
+          "title": "Approved",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "equation_id",
+        "number",
+        "latex",
+        "page",
+        "bbox",
+        "equation_type",
+        "variables",
+        "description",
+        "approved"
+      ],
+      "title": "EquationJSON",
+      "type": "object"
+    },
+    "EquationVariableJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "title": "Symbol",
+          "type": "string"
+        },
+        "definition": {
+          "title": "Definition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol",
+        "definition"
+      ],
+      "title": "EquationVariableJSON",
+      "type": "object"
+    },
+    "FigureConnectorJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "label"
+      ],
+      "title": "FigureConnectorJSON",
+      "type": "object"
+    },
+    "FigureJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "figure_id": {
+          "title": "Figure Id",
+          "type": "string"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Number"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Caption"
+        },
+        "page": {
+          "title": "Page",
+          "type": "integer"
+        },
+        "bbox": {
+          "$ref": "#/$defs/BBoxJSON"
+        },
+        "figure_type": {
+          "title": "Figure Type",
+          "type": "string"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/FigureObjectJSON"
+          },
+          "title": "Objects",
+          "type": "array"
+        },
+        "connectors": {
+          "items": {
+            "$ref": "#/$defs/FigureConnectorJSON"
+          },
+          "title": "Connectors",
+          "type": "array"
+        },
+        "relationships": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Relationships",
+          "type": "array"
+        },
+        "workflow": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Workflow",
+          "type": "array"
+        },
+        "legends": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Legends",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "keywords": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Keywords",
+          "type": "array"
+        },
+        "image_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Image Path"
+        },
+        "approved": {
+          "title": "Approved",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "figure_id",
+        "number",
+        "caption",
+        "page",
+        "bbox",
+        "figure_type",
+        "objects",
+        "connectors",
+        "relationships",
+        "workflow",
+        "legends",
+        "description",
+        "summary",
+        "keywords",
+        "image_path",
+        "approved"
+      ],
+      "title": "FigureJSON",
+      "type": "object"
+    },
+    "FigureObjectJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ],
+      "title": "FigureObjectJSON",
+      "type": "object"
+    },
+    "RelationshipJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "contains",
+            "references",
+            "continues",
+            "chunk_next",
+            "chunk_similar",
+            "defines"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "type"
+      ],
+      "title": "RelationshipJSON",
+      "type": "object"
+    },
+    "SectionJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "section_id": {
+          "title": "Section Id",
+          "type": "string"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Number"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "level": {
+          "title": "Level",
+          "type": "integer"
+        },
+        "page_start": {
+          "title": "Page Start",
+          "type": "integer"
+        },
+        "page_end": {
+          "title": "Page End",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "keywords": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Keywords",
+          "type": "array"
+        },
+        "summary": {
+          "$ref": "#/$defs/SummaryJSON"
+        },
+        "confidence": {
+          "$ref": "#/$defs/ConfidenceJSON"
+        },
+        "subsections": {
+          "items": {
+            "$ref": "#/$defs/SubsectionJSON"
+          },
+          "title": "Subsections",
+          "type": "array"
+        },
+        "tables": {
+          "items": {
+            "$ref": "#/$defs/TableJSON"
+          },
+          "title": "Tables",
+          "type": "array"
+        },
+        "figures": {
+          "items": {
+            "$ref": "#/$defs/FigureJSON"
+          },
+          "title": "Figures",
+          "type": "array"
+        },
+        "equations": {
+          "items": {
+            "$ref": "#/$defs/EquationJSON"
+          },
+          "title": "Equations",
+          "type": "array"
+        },
+        "entities": {
+          "items": {
+            "$ref": "#/$defs/EntityJSON"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "abbreviations": {
+          "items": {
+            "$ref": "#/$defs/AbbreviationJSON"
+          },
+          "title": "Abbreviations",
+          "type": "array"
+        },
+        "cross_references": {
+          "items": {
+            "$ref": "#/$defs/CrossReferenceJSON"
+          },
+          "title": "Cross References",
+          "type": "array"
+        },
+        "chunks": {
+          "items": {
+            "$ref": "#/$defs/ChunkJSON"
+          },
+          "title": "Chunks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "section_id",
+        "number",
+        "title",
+        "level",
+        "page_start",
+        "page_end",
+        "text",
+        "keywords",
+        "summary",
+        "confidence",
+        "subsections",
+        "tables",
+        "figures",
+        "equations",
+        "entities",
+        "abbreviations",
+        "cross_references",
+        "chunks"
+      ],
+      "title": "SectionJSON",
+      "type": "object"
+    },
+    "SubsectionJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "section_id": {
+          "title": "Section Id",
+          "type": "string"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Number"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "level": {
+          "title": "Level",
+          "type": "integer"
+        },
+        "page_start": {
+          "title": "Page Start",
+          "type": "integer"
+        },
+        "page_end": {
+          "title": "Page End",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "section_id",
+        "number",
+        "title",
+        "level",
+        "page_start",
+        "page_end",
+        "text"
+      ],
+      "title": "SubsectionJSON",
+      "type": "object"
+    },
+    "SummaryJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "abstract": {
+          "title": "Abstract",
+          "type": "string"
+        },
+        "key_concepts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Concepts",
+          "type": "array"
+        },
+        "important_entities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Important Entities",
+          "type": "array"
+        },
+        "confidence": {
+          "title": "Confidence",
+          "type": "number"
+        },
+        "verification_status": {
+          "enum": [
+            "Verified",
+            "Regenerated",
+            "Flagged",
+            "Unchecked"
+          ],
+          "title": "Verification Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "abstract",
+        "key_concepts",
+        "important_entities",
+        "confidence",
+        "verification_status"
+      ],
+      "title": "SummaryJSON",
+      "type": "object"
+    },
+    "TableJSON": {
+      "additionalProperties": false,
+      "properties": {
+        "table_id": {
+          "title": "Table Id",
+          "type": "string"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Number"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Caption"
+        },
+        "page": {
+          "title": "Page",
+          "type": "integer"
+        },
+        "bbox": {
+          "$ref": "#/$defs/BBoxJSON"
+        },
+        "headers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Headers",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "units": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Units",
+          "type": "object"
+        },
+        "key_attributes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Attributes",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "keywords": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Keywords",
+          "type": "array"
+        },
+        "approved": {
+          "title": "Approved",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "table_id",
+        "number",
+        "caption",
+        "page",
+        "bbox",
+        "headers",
+        "rows",
+        "units",
+        "key_attributes",
+        "description",
+        "summary",
+        "keywords",
+        "approved"
+      ],
+      "title": "TableJSON",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "J: structured JSON document.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "document": {
+      "$ref": "#/$defs/DocumentInfo"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/SectionJSON"
+      },
+      "title": "Sections",
+      "type": "array"
+    },
+    "abbreviations": {
+      "items": {
+        "$ref": "#/$defs/AbbreviationJSON"
+      },
+      "title": "Abbreviations",
+      "type": "array"
+    },
+    "relationships": {
+      "items": {
+        "$ref": "#/$defs/RelationshipJSON"
+      },
+      "title": "Relationships",
+      "type": "array"
+    },
+    "statistics": {
+      "$ref": "#/$defs/DocumentStatistics"
+    }
+  },
+  "required": [
+    "document",
+    "sections",
+    "abbreviations",
+    "relationships",
+    "statistics"
+  ],
+  "title": "DocumentJSON",
+  "type": "object"
+}

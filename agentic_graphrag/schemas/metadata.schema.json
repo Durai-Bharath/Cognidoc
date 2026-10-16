@@ -1,0 +1,410 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-graphrag/schemas/stage1/1.0.0/metadata.schema.json",
+  "$defs": {
+    "DocumentInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {
+          "title": "Document Id",
+          "type": "string"
+        },
+        "document_type": {
+          "enum": [
+            "PDF",
+            "DOCX",
+            "IMAGE"
+          ],
+          "title": "Document Type",
+          "type": "string"
+        },
+        "document_category": {
+          "title": "Document Category",
+          "type": "string"
+        },
+        "category_confidence": {
+          "title": "Category Confidence",
+          "type": "number"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        },
+        "author": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Author"
+        },
+        "creation_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Creation Date"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "total_pages": {
+          "minimum": 0,
+          "title": "Total Pages",
+          "type": "integer"
+        },
+        "file_size_bytes": {
+          "minimum": 0,
+          "title": "File Size Bytes",
+          "type": "integer"
+        },
+        "mime_type": {
+          "title": "Mime Type",
+          "type": "string"
+        },
+        "source_file": {
+          "title": "Source File",
+          "type": "string"
+        },
+        "processing_timestamp": {
+          "title": "Processing Timestamp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document_id",
+        "document_type",
+        "document_category",
+        "category_confidence",
+        "title",
+        "author",
+        "creation_date",
+        "language",
+        "total_pages",
+        "file_size_bytes",
+        "mime_type",
+        "source_file",
+        "processing_timestamp"
+      ],
+      "title": "DocumentInfo",
+      "type": "object"
+    },
+    "DocumentStatistics": {
+      "additionalProperties": false,
+      "properties": {
+        "total_sections": {
+          "minimum": 0,
+          "title": "Total Sections",
+          "type": "integer"
+        },
+        "total_subsections": {
+          "minimum": 0,
+          "title": "Total Subsections",
+          "type": "integer"
+        },
+        "total_tables": {
+          "minimum": 0,
+          "title": "Total Tables",
+          "type": "integer"
+        },
+        "total_figures": {
+          "minimum": 0,
+          "title": "Total Figures",
+          "type": "integer"
+        },
+        "total_equations": {
+          "minimum": 0,
+          "title": "Total Equations",
+          "type": "integer"
+        },
+        "total_entities": {
+          "minimum": 0,
+          "title": "Total Entities",
+          "type": "integer"
+        },
+        "total_abbreviations": {
+          "minimum": 0,
+          "title": "Total Abbreviations",
+          "type": "integer"
+        },
+        "total_cross_references": {
+          "minimum": 0,
+          "title": "Total Cross References",
+          "type": "integer"
+        },
+        "total_chunks": {
+          "minimum": 0,
+          "title": "Total Chunks",
+          "type": "integer"
+        },
+        "total_words": {
+          "minimum": 0,
+          "title": "Total Words",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_sections",
+        "total_subsections",
+        "total_tables",
+        "total_figures",
+        "total_equations",
+        "total_entities",
+        "total_abbreviations",
+        "total_cross_references",
+        "total_chunks",
+        "total_words"
+      ],
+      "title": "DocumentStatistics",
+      "type": "object"
+    },
+    "QualityInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "ocr_applied": {
+          "title": "Ocr Applied",
+          "type": "boolean"
+        },
+        "ocr_quality_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ocr Quality Score"
+        },
+        "enhanced_pages": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Enhanced Pages",
+          "type": "array"
+        },
+        "layout_confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Layout Confidence",
+          "type": "number"
+        },
+        "document_confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Document Confidence",
+          "type": "number"
+        },
+        "confidence_level": {
+          "enum": [
+            "High",
+            "Medium",
+            "Low"
+          ],
+          "title": "Confidence Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ocr_applied",
+        "ocr_quality_score",
+        "enhanced_pages",
+        "layout_confidence",
+        "document_confidence",
+        "confidence_level"
+      ],
+      "title": "QualityInfo",
+      "type": "object"
+    },
+    "SectionMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "section_id": {
+          "title": "Section Id",
+          "type": "string"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Number"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "level": {
+          "minimum": 1,
+          "title": "Level",
+          "type": "integer"
+        },
+        "page_start": {
+          "minimum": 1,
+          "title": "Page Start",
+          "type": "integer"
+        },
+        "page_end": {
+          "minimum": 1,
+          "title": "Page End",
+          "type": "integer"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "keywords": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Keywords",
+          "type": "array"
+        },
+        "confidence_score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence Score",
+          "type": "number"
+        },
+        "confidence_level": {
+          "enum": [
+            "High",
+            "Medium",
+            "Low"
+          ],
+          "title": "Confidence Level",
+          "type": "string"
+        },
+        "subsection_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Subsection Ids",
+          "type": "array"
+        },
+        "table_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Table Ids",
+          "type": "array"
+        },
+        "figure_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Figure Ids",
+          "type": "array"
+        },
+        "equation_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Equation Ids",
+          "type": "array"
+        },
+        "entity_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Ids",
+          "type": "array"
+        },
+        "abbreviations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Abbreviations",
+          "type": "array"
+        },
+        "cross_reference_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cross Reference Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "section_id",
+        "number",
+        "title",
+        "level",
+        "page_start",
+        "page_end",
+        "summary",
+        "keywords",
+        "confidence_score",
+        "confidence_level",
+        "subsection_ids",
+        "table_ids",
+        "figure_ids",
+        "equation_ids",
+        "entity_ids",
+        "abbreviations",
+        "cross_reference_ids"
+      ],
+      "title": "SectionMetadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "M: document-level metadata.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "document": {
+      "$ref": "#/$defs/DocumentInfo"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/SectionMetadata"
+      },
+      "title": "Sections",
+      "type": "array"
+    },
+    "statistics": {
+      "$ref": "#/$defs/DocumentStatistics"
+    },
+    "quality": {
+      "$ref": "#/$defs/QualityInfo"
+    },
+    "review_flags": {
+      "minimum": 0,
+      "title": "Review Flags",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "document",
+    "sections",
+    "statistics",
+    "quality",
+    "review_flags"
+  ],
+  "title": "MetadataFile",
+  "type": "object"
+}

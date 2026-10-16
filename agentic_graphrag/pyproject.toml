@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-graphrag"
+version = "0.1.0"
+description = "Agentic GraphRAG - Stage 1: agentic document extraction"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "numpy>=1.26",
+    "opencv-python-headless>=4.9",
+    "pillow>=10.0",
+    "pymupdf>=1.24",
+    "python-docx>=1.1",
+    "langgraph>=0.2",
+    "jsonschema>=4.21",
+]
+
+[project.optional-dependencies]
+llm = ["anthropic>=0.70", "openai>=1.40"]
+embeddings = ["sentence-transformers>=3.0"]
+ocr = ["pytesseract>=0.3.10"]
+layout = ["docling>=2.0"]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "types-PyYAML",
+    "types-jsonschema",
+]
+
+[project.scripts]
+agentic-extract = "extraction.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["integration: end-to-end pipeline tests (still offline)"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003", "SIM905", "SIM108"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+packages = ["common", "extraction"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["cv2.*", "fitz.*", "pymupdf.*", "docx.*", "pytesseract.*", "sentence_transformers.*", "docling.*", "langgraph.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# PyMuPDF and python-docx ship without type hints.
+module = ["extraction.parsers", "extraction.testing"]
+disallow_untyped_calls = false
