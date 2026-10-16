@@ -1,23 +1,23 @@
 import os
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import AzureOpenAI
 
 load_dotenv()
 
-client = OpenAI(
-  base_url="https://openrouter.ai/api/v1",
-  api_key=os.environ["OPENROUTER_API_KEY"],
+client = AzureOpenAI(
+  azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+  api_key=os.environ["AZURE_OPENAI_API_KEY"],
+  api_version=os.environ["OPENAI_API_VERSION"],
 )
 
 response = client.chat.completions.create(
-  model="openrouter/free",
+  model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
   messages=[
           {
             "role": "user",
             "content": "How many r's are in the word 'strawberry'?"
           }
-        ],
-  extra_body={"reasoning": {"enabled": True}}
+        ]
 )
 
 response = response.choices[0].message
