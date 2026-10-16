@@ -125,3 +125,171 @@ were decided in the task brief. Items 5 onward came up during implementation.
 24. **Tesseract** is the default real OCR engine. It is an external binary: install it
     with `sudo apt install tesseract-ocr` and `pip install -e ".[ocr]"`. Without it,
     image documents fail at Alg. 4 with a clear error.
+
+---
+
+# Design decisions (Stage 2: graph construction)
+
+How ambiguities in *Construction.pdf* (Algorithms 1–16, agents A1–A15) were resolved.
+Items 1–3 were decided in the task brief. Items 4 onward came up during implementation.
+Code lives in `src/construction/`, tests in `tests/construction/`.
+
+## Decided in the brief
+
+1. **Where A11–A15 run relative to the chunk loop.** Alg. 1 indents lines 24–26
+   (Provenance, Embedding, Vector Index) inside the loop and lines 27–28 (Validation,
+   Audit) after it. A11–A13 therefore run once per **accepted** chunk, on the nodes and
+   edges that chunk touched. A14–A15 run once after all chunks, on the whole KG and VDB.
+   Skipped chunks (lines 8–10) produce nothing: no Chunk node, no vectors.
+2. **Conflict collapses to Reject (Alg. 10 line 11), but is never silently discarded.**
+   For every Conflict *and* Reject, the Decision Agent writes a `ConflictRecord`. It holds
+   the incoming triple with its provenance, the existing edges it clashes with and their
+   provenance, and the reason. Records go to the review queue (`agent: decision`) and
+   into `construction_report.json` under `conflicts`. A10 discards the triple.
+3. **Community summaries for Stage 3.** `CommunityBuilder` (`src/construction/community.py`)
+   runs after A15. It applies Louvain (networkx, fixed seed) to the confidence-weighted
+   undirected entity graph, or Leiden with `community.algorithm: leiden` when `igraph` and
+   `leidenalg` are installed (otherwise it falls back to Louvain). Each community of at
+   least `min_size` members gets a `Community` node with an LLM summary (extractive
+   fallback), `MEMBER_OF` edges from its members, and an embedding in the `communities`
+   collection. *Only changed communities are rebuilt.* A community's id is a hash of its
+   sorted members, and its signature is a hash of the member names and internal edges.
+   An unchanged id and signature means no LLM call and no re-embedding. Communities that
+   disappear are deleted along with their vectors. A14 and A15 run before this step, so
+   on the *next* run they also validate Community nodes and vectors.
+
+## Found during implementation
+
+4. **Merge vs Update.** The PDF names both but never separates them. The rule:
+   - The edge `(subject, predicate, object)` already exists *and* has a provenance record
+     for the same `(doc_id, chunk_id)` → **Update**. Only the confidence and provenance
+     timestamp change (Alg. 1 line 21).
+   - The edge exists and the source is new → **Merge**. A provenance record is appended
+     and the endpoints' aliases and provenance are unioned.
+
+   Edge confidence is the max over its sources, and `support` is the number of distinct
+   sources. This is what makes re-ingestion idempotent: the same document yields only
+   Updates, with no new nodes, edges, vectors or provenance records
+   (`test_reingesting_the_same_document_is_idempotent`).
+5. **What counts as a Conflict.** A new edge conflicts when:
+   - its predicate is `functional: true` in the ontology (`has_interval`, `has_value`,
+     `has_status`) and the subject already has a *different* object for it; or
+   - an `exclusive` predicate pair (`requires`/`prohibits`, `causes`/`prevents`) links the
+     same subject and object.
+
+   Both rules check the KG and earlier triples in the same chunk. **Reject** covers: no
+   ontology predicate (A7), a self-loop after entity resolution, or a domain/range
+   violation.
+6. **A6 proposes, A10 writes.** Entity Resolution returns an `EntityRef` per mention:
+   either an existing node id, or a deterministic new id (a hash of the normalised name).
+   Only Graph CRUD creates nodes, and only on Create/Merge. Rejected or conflicting
+   triples therefore leave the entity graph exactly as it was
+   (`test_contradictory_triples_across_documents_are_logged_and_graph_unchanged`).
+   The incoming document's Document node and accepted Chunk nodes are still registered,
+   because A1 and A11 always run.
+7. **Entity resolution order.** First an exact canonical-id match (similarity 1.0). Then
+   `GraphStore.similar_nodes` over Entity embeddings, where cosine ≥ δ (0.85) with
+   compatible types links. Then earlier *new* mentions in the same chunk, so one chunk
+   never proposes two near-duplicates. Entities are embedded by **name only** (A12), the
+   same text A6 compares, so lookups stay consistent.
+8. **Type `Concept` is the fallback type and a wildcard.** An LLM type that maps to no
+   ontology type or synonym becomes `Concept`. `Concept` satisfies every domain/range
+   constraint and links with any type in A6. A linked `Concept` node takes the more
+   specific type of a later mention.
+9. **A5 "Evaluate confidence".** The evaluated confidence is the LLM confidence,
+   multiplied by `ungrounded_penalty` (0.6) when the head or tail cannot be found in the
+   chunk text or its overlap context. Grounding matches the name, the original mention
+   or an abbreviation, verbatim or token by token, with numbers kept and unit letters
+   ignored ("500 h" is grounded by "500"). Triples with evaluated confidence ≥ τ (0.5)
+   survive. The Alg. 1 line 8 test "Confidence Score < τ" is read at chunk level as *no
+   surviving triple*.
+10. **A10 writes provenance; A11 completes and verifies it.** Merge and Update are defined
+    in terms of provenance, so the CRUD operation must store the triple's provenance
+    record. A11 then:
+    - registers the Chunk node (text, section path, pages) with `IN_DOCUMENT` and
+      `NEXT_CHUNK` edges;
+    - adds `MENTIONED_IN` edges from every touched entity;
+    - fills a missing page, source reference or timestamp from the chunk;
+    - fails validation (and flags) when a touched element still lacks a complete record
+      for this source.
+11. **Document ID.** `doc-` + the first 16 hex characters of the sha256 of the canonical
+    JSON of J, excluding the volatile `processing_timestamp` and `source_file`. Re-running
+    Stage 1 on the same file therefore yields the same id. The Stage 1 id is kept as the
+    Document property `source_document_id`. A1 also requires `M.document_id ==
+    J.document_id` (`ingestion.require_metadata_match`).
+12. **Chunking reuses Stage 1.** Stage 1's Context Memory agent already makes section-aware
+    semantic chunks. A2 reuses them and adds:
+    - document-scoped ids (`<doc_id>:<stage1 chunk id>`);
+    - overlap (the tail of the previous chunk in the same section, up to
+      `overlap_tokens`), passed as `context` and used only for coreference and grounding,
+      so facts are never extracted twice;
+    - `section_path`, including the first subsection whose title appears in the chunk;
+    - sentence-window splits for oversized chunks and for sections with no chunks;
+    - one linearised chunk per table (`Header: value; …` per row), because tables carry
+      dense facts that pipe-separated text hides.
+13. **Coreference is rule-based and deterministic.** It resolves:
+    - pronouns to the last explicit subject in the chunk, else the previous chunk's
+      subject, else the triple is dropped;
+    - "this report" and similar to the document title;
+    - abbreviations through Stage 1's repository in J (whole names, embedded tokens,
+      plurals, and the "Expansion (ABBR)" form);
+    - duplicate mentions (case, articles, plurals) to the most frequent form, with ties
+      going to the shortest, i.e. the singular.
+
+    An LLM coreference pass would be a drop-in replacement behind the same agent.
+14. **Relation normalisation order.** The relation is tried as an exact predicate name,
+    then a synonym, then an inverse synonym (which swaps head and tail, e.g. "contains" →
+    `part_of`), then a stemmed match. Only after that does the LLM fallback run, choosing
+    a listed predicate or `NONE`; its answers are cached per phrase for the run. An answer
+    not in the ontology counts as `NONE`. The default ontology deliberately has no generic
+    `related_to`, which would absorb every unmatched relation and make Reject
+    unreachable. The ontology is validated at startup (snake_case predicates, known types
+    in domain/range, no synonym mapping to two predicates, known exclusive pairs, the
+    `Concept` fallback present); an invalid file raises `OntologyError` before any
+    document is read.
+15. **Graph model.** Node labels: `Document`, `Chunk`, `Entity`, `Community`. Structural
+    predicates: `IN_DOCUMENT`, `NEXT_CHUNK`, `MENTIONED_IN`, `MEMBER_OF`. All other edges
+    are ontology predicates between Entities. Edge id = hash(source, predicate, target),
+    so every write is an idempotent upsert. A14 checks that structural edges connect the
+    right labels.
+16. **Failure isolation.** Every per-chunk node (A3–A13) is wrapped. Two kinds of failure
+    are caught: a typed `AgentError` (e.g. the LLM failing after retries) and an unexpected
+    exception inside the node. Either one:
+    - marks the chunk `failed`, with its stage and error;
+    - flags it to the review queue;
+    - routes back to `next_chunk`.
+
+    Graph CRUD isolates failures per *operation*: one failing triple is logged in
+    `agent_errors`, and the chunk's other triples still apply. Only A1 and A2 are fatal.
+    They end the run with a `rejected` construction report and no KG export.
+    Limitation: if a chunk fails *after* CRUD (in A11–A13), its edges stay in the graph
+    without full provenance or vectors. A14 reports exactly that, rather than rolling
+    back, because the in-memory and Neo4j backends have no shared transaction.
+17. **Stale relationships (A15).** An edge is stale when none of its provenance records
+    points at a Document and Chunk still in the KG, or when its newest source timestamp
+    is older than `audit.stale_after_days` (365). Duplicates are entity pairs with the
+    same mention key, or with embedding cosine ≥ `audit.duplicate_similarity` (0.95).
+    `health_score` is the mean of (1 − orphan ratio, 1 − duplicate ratio, 1 − stale ratio,
+    1 − low-confidence ratio, largest-component ratio, ontology-compliance ratio).
+18. **Several disconnected entity components only warn** (`single_entity_component`).
+    A KG built from several unrelated documents is naturally disconnected. Hard
+    connectivity requirements are that every Chunk is `IN_DOCUMENT` and every Entity is
+    `MENTIONED_IN` some chunk.
+19. **Vector verification.** A13 reads every vector back. It must be present, map to the
+    right node (`payload.node_id`), and be equal or have cosine ≥ 0.999 (backends may
+    re-normalise). A text with no content words embeds to a zero vector, which has no
+    direction, so equality is accepted for it. A verification failure is a typed
+    `VectorIndexError`.
+20. **Backends.** `GraphStore` has `InMemoryGraphStore` (networkx `MultiDiGraph`, JSON
+    persistence) and `Neo4jGraphStore`, which stores nested data as JSON strings and uses
+    native vector indexes per label (Neo4j's cosine score (1+cos)/2 is converted back).
+    `VectorStore` has `InMemoryVectorStore` and `QdrantVectorStore` (string ids mapped to
+    uuid5, original id in the payload). Chroma was not implemented; the brief allowed
+    either. The CLI persists in-memory state to `paths.state_dir`, so successive
+    `construct` runs are incremental against the same KG/VDB.
+21. **Offline test doubles.** `construction.testing.offline_construction_llm()` is a
+    prompt-aware `MockLLM`. Triples come from simple verb patterns and linearised table
+    rows in the TEXT block. Relation fallback strips modal verbs and retries the
+    ontology. Community summaries are built from the listed facts. It is deterministic,
+    not good, and exists to drive every branch. `make_document()` builds schema-valid
+    J/M pairs for tests.

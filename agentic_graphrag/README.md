@@ -1,4 +1,7 @@
-# Agentic GraphRAG — Stage 1: Document Extraction
+# Agentic GraphRAG — Stage 1: Document Extraction · Stage 2: Graph Construction
+
+> Stage 2 (knowledge-graph construction) is documented in
+> [Stage 2: Graph Construction](#stage-2-graph-construction) below.
 
 Stage 1 of a three-stage Agentic GraphRAG system. It turns a PDF, DOCX or image
 (PNG/JPG/JPEG/TIFF/BMP) into three files:
@@ -107,6 +110,94 @@ rejected.
 | `embedder.provider` | `sentence_transformers` (`all-MiniLM-L6-v2`) | `openrouter` (`liquid/lfm-2.5-embedding-350m:free`) |
 | `ocr.engine` | `tesseract` | `tesseract` |
 
+## Stage 2: Graph Construction
+
+Stage 2 reads Stage 1's `document.json` (J) and `metadata.json` (M) and updates a knowledge
+graph (KG) and a vector database (VDB). It then writes `construction_report.json`. The
+15 agents A1–A15 of *Construction.pdf* map one class each
+([TRACEABILITY_STAGE2.md](TRACEABILITY_STAGE2.md)), with ambiguities recorded under
+"Stage 2" in [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md). Stage 2 reuses Stage 1's
+`BaseAgent`, `LLMClient`, `Embedder`, `ReviewQueue`, JSON Schemas and abbreviation
+repository.
+
+```mermaid
+graph TD
+  ingestion -->|valid| semantic_chunking --> next_chunk
+  ingestion -->|invalid| export
+  next_chunk -->|chunk C_i| triple_extraction --> coreference_resolution --> confidence_evaluation
+  confidence_evaluation -->|no triple ≥ τ| discard_chunk --> next_chunk
+  confidence_evaluation -->|triples ≥ τ| entity_resolution --> relation_normalization
+  relation_normalization --> conflict_detection --> decision --> next_operation
+  next_operation -->|New| crud_create --> next_operation
+  next_operation -->|Merge| crud_merge --> next_operation
+  next_operation -->|Update| crud_update --> next_operation
+  next_operation -->|Conflict / Reject| reject --> next_operation
+  next_operation -->|done| provenance --> embedding --> vector_index --> next_chunk
+  next_chunk -->|done| construction_validation --> graph_health_audit --> community_builder --> export
+```
+
+Any per-chunk node that fails marks that chunk `failed`, flags it for review and moves
+on to the next chunk. `AgenticGraphConstructionFramework.mermaid()` prints the compiled
+graph.
+
+```bash
+construct --json document.json --metadata metadata.json            # providers from construction.yaml
+```
+
+```bash
+construct --json document.json --metadata metadata.json --offline  # MockLLM + FakeEmbedder
+```
+
+```bash
+make construct-example                                             # Stage 1 → Stage 2 on a sample PDF
+```
+
+With the default in-memory backends, the KG and VDB persist to `paths.state_dir`
+(`output/kg_state`), so successive runs are incremental. Re-ingesting a document only
+produces Update operations: no duplicate nodes, edges or vectors.
+
+### Backends
+
+| Interface | Test / default backend | Production backend |
+|---|---|---|
+| `GraphStore` | `InMemoryGraphStore` (networkx) | `Neo4jGraphStore` (native vector indexes) |
+| `VectorStore` | `InMemoryVectorStore` | `QdrantVectorStore` |
+
+```bash
+pip install -e ".[graph]" && docker compose up -d
+```
+
+```bash
+NEO4J_PASSWORD=graphrag-dev construct --json document.json --metadata metadata.json --graph-backend neo4j --vector-backend qdrant
+```
+
+```bash
+GRAPHRAG_LIVE_STORES=1 NEO4J_PASSWORD=graphrag-dev make test      # also runs the store contract on Neo4j + Qdrant
+```
+
+### Ontology and configuration
+
+- [`ontology.yaml`](ontology.yaml) is the ontology O. It defines 17 entity types with
+  synonyms and 22 predicates, each with synonyms, inverse synonyms, domain/range, and
+  `functional` flags. It also lists exclusive predicate pairs. The file is validated at
+  startup.
+- [`construction.yaml`](construction.yaml) holds τ (confidence), δ (entity similarity),
+  chunk sizes and overlap, the audit thresholds, community settings and backends.
+
+### Outputs
+
+`construction_report.json` contains:
+
+- chunk outcomes: accepted, skipped below τ, or failed, with stage and error;
+- triple counts and the New/Merge/Update/Conflict/Reject statuses;
+- Create/Merge/Update/Reject operations;
+- every `ConflictRecord`;
+- the A14 checks;
+- A15 audit metrics: orphans, duplicates, stale and low-confidence edges, components,
+  provenance and vector coverage, and `health_score`;
+- the community summary, per-agent traces, and export paths: `knowledge_graph.json` and
+  `vector_database.json`.
+
 ## Development
 
 ```bash
@@ -127,9 +218,12 @@ make schemas    # regenerate schemas/ from output_models.py (a test catches drif
 src/common/        base_agent, llm, embedder, config, logging, review_queue, validation, text
 src/extraction/    agents/ (20 agents), graph.py (Alg. 1), schemas.py, output_models.py,
                    parsers.py, layout_models.py, image_ops.py, ocr.py, testing.py, cli.py
+src/construction/  agents/ (A1-A15), graph.py (Stage 2 Alg. 1), community.py, ontology.py,
+                   stores/ (memory, neo4j, qdrant), models.py, config.py, testing.py, cli.py
 schemas/           document / metadata / validation_report JSON Schemas (Stage 2 contract)
-tests/             common/ and extraction/ (unit per agent, graph routing, integration)
-examples/          run_example.py
+tests/             common/, extraction/ and construction/ (unit per agent, graph routing, integration)
+examples/          run_example.py, run_construction_example.py
+ontology.yaml      Stage 2 ontology O;  construction.yaml: Stage 2 config;  docker-compose.yml: Neo4j + Qdrant
 ```
 
 ## Known limitations
@@ -143,3 +237,8 @@ examples/          run_example.py
 - **Real OCR needs the Tesseract binary**, which is not installed on this machine.
 - **Free OpenRouter models are rate-limited** to 20 requests per minute. The embedder
   waits and retries, so live runs on large documents are slow on the free tier.
+- **Stage 2's offline triple extractor is a pattern matcher** used only by tests and
+  `--offline`. Real extraction quality depends on the configured LLM.
+- **A chunk that fails after Graph CRUD** (in A11–A13) keeps its edges without full
+  provenance or vectors. Construction Validation reports it, but nothing is rolled back
+  (DESIGN_DECISIONS Stage 2 #16).

@@ -1,0 +1,85 @@
+# Stage 2 (graph construction) configuration. Every value is the documented default from
+# src/construction/config.py, except the providers, which match Stage 1's config.yaml for
+# this repo: Azure OpenAI chat (deployment from $AZURE_OPENAI_DEPLOYMENT) and OpenRouter
+# embeddings. `construct --offline` replaces both with MockLLM + FakeEmbedder.
+llm:
+  provider: azure_openai
+  model: ''
+  max_tokens: 4096
+  temperature: 0.0
+  max_retries: 3
+
+embedder:
+  provider: openrouter
+  model: liquid/lfm-2.5-embedding-350m:free
+  batch_size: 32
+  max_retries: 6
+
+ingestion:
+  # M.document.document_id must equal J.document.document_id.
+  require_metadata_match: true
+
+chunking:
+  # Re-split any Stage 1 chunk larger than this (tokens).
+  max_tokens: 400
+  # Tail of the previous chunk in the same section passed as context (tokens).
+  overlap_tokens: 60
+  # Emit one linearised chunk per table.
+  include_tables: true
+  min_tokens: 3
+
+triples:
+  max_triples_per_chunk: 40
+
+confidence:
+  # τ: triples with evaluated confidence < τ are discarded (Alg. 6).
+  tau: 0.5
+  # Multiplier when the head or tail is not found in the chunk text.
+  ungrounded_penalty: 0.6
+
+entity_resolution:
+  # δ: cosine ≥ δ links a mention to an existing node (Alg. 7).
+  delta: 0.85
+  top_k: 5
+  require_type_compatibility: true
+
+relations:
+  # Ask the LLM to pick an ontology predicate when no synonym matches (Alg. 8).
+  llm_fallback: true
+
+validation:
+  max_entity_name_chars: 120
+
+audit:
+  low_confidence: 0.6
+  duplicate_similarity: 0.95
+  stale_after_days: 365
+
+community:
+  enabled: true
+  # louvain (networkx) or leiden (needs igraph + leidenalg; falls back to louvain).
+  algorithm: louvain
+  resolution: 1.0
+  seed: 42
+  min_size: 2
+  llm_summaries: true
+
+stores:
+  # memory | neo4j  (docker compose up -d; set NEO4J_PASSWORD)
+  graph_backend: memory
+  # memory | qdrant
+  vector_backend: memory
+  neo4j_uri: bolt://localhost:7687
+  neo4j_user: neo4j
+  neo4j_database: neo4j
+  qdrant_url: http://localhost:6333
+  collection_prefix: graphrag_
+
+paths:
+  output_dir: output/construction
+  state_dir: output/kg_state
+  review_queue: output/review_queue.jsonl
+  schemas_dir: schemas
+  ontology: ontology.yaml
+
+log_level: INFO

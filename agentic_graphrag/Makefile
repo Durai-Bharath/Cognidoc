@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install test lint typecheck format schemas example
+.PHONY: install test lint typecheck format schemas example construct-example stores-up stores-down
 
 install:
 	$(PYTHON) -m pip install -e ".[dev,llm]"
@@ -21,3 +21,12 @@ schemas:
 
 example:
 	$(PYTHON) examples/run_example.py
+
+construct-example:
+	$(PYTHON) examples/run_construction_example.py
+
+stores-up:
+	docker compose up -d
+
+stores-down:
+	docker compose down

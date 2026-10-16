@@ -1,0 +1,192 @@
+# Default ontology O for Stage 2 (Agentic Graph Construction).
+#
+# entity_types: the allowed node types. `synonyms` maps the free-text types an LLM returns
+#   onto these names. `Concept` is the fallback for unknown types and satisfies any
+#   domain/range constraint (DESIGN_DECISIONS.md #9).
+# predicates: the allowed relationship predicates.
+#   synonyms          – surface forms that map onto the predicate as-is.
+#   inverse_synonyms  – surface forms that map onto it with head and tail swapped
+#                       ("X contains Y" → Y part_of X).
+#   domain / range    – allowed head / tail types; `Any` is a wildcard.
+#   functional        – a head may have only one tail. A different tail is a Conflict.
+# exclusive: predicate pairs that contradict each other for the same head and tail.
+#
+# A generic `related_to` is deliberately absent: it would absorb every unmatched
+# relation, and then nothing would ever be rejected.
+version: 1
+
+entity_types:
+  Concept:
+    description: Anything that does not fit a more specific type.
+    synonyms: [concept, term, domain-specific term, thing, topic, other, entity, unknown]
+  Organization:
+    description: Company, agency, institution or team.
+    synonyms: [organisation, company, institution, agency, team, vendor, manufacturer]
+  Person:
+    description: A named person or a human role.
+    synonyms: [people, role, author, technician, operator, engineer, user]
+  System:
+    description: A system or assembly made of components.
+    synonyms: [assembly, subsystem, machine, plant, installation]
+  Component:
+    description: A physical or logical part of a system.
+    synonyms: [part, device, unit, module, element, hardware]
+  Equipment:
+    description: A tool, instrument or piece of equipment.
+    synonyms: [tool, instrument, apparatus, product, model]
+  Software:
+    description: Software, framework, library or service.
+    synonyms: [software/framework, framework, library, application, service, program]
+  Process:
+    description: An activity, procedure or method.
+    synonyms: [procedure, method, activity, task, operation, workflow, step]
+  Standard:
+    description: A standard, regulation, guideline or policy.
+    synonyms: [regulation, guideline, policy, specification, norm, law]
+  Parameter:
+    description: A measurable quantity, variable or property.
+    synonyms: [property, variable, metric, measurement, attribute, physical quantity]
+  Quantity:
+    description: A literal value with an optional unit.
+    synonyms: [value, number, amount, duration, interval, numeric value, literal]
+  Status:
+    description: A state or condition.
+    synonyms: [state, condition, result]
+  Location:
+    description: A place or site.
+    synonyms: [place, site, region, country, city, facility]
+  Event:
+    description: An incident or event in time.
+    synonyms: [incident, occurrence, failure, outage]
+  Date:
+    description: A date or time.
+    synonyms: [time, datetime, timestamp]
+  Document:
+    description: A document, report, table, figure or section.
+    synonyms: [report, manual, table, figure, section, paper, artifact, equation]
+  Material:
+    description: A substance or material.
+    synonyms: [substance, fluid, chemical, compound]
+
+predicates:
+  part_of:
+    description: The head is a part or component of the tail.
+    domain: [Component, System, Equipment, Software, Concept]
+    range: [Component, System, Equipment, Software, Organization, Concept]
+    synonyms: [is part of, belongs to, component of, is a component of, subsystem of, module of]
+    inverse_synonyms: [contains, includes, has part, has component, consists of, comprises, is composed of]
+  is_a:
+    description: Type or class membership.
+    domain: [Any]
+    range: [Any]
+    synonyms: [is, is a, is an, type of, kind of, instance of, subclass of]
+  regulates:
+    description: The head regulates or controls the tail.
+    domain: [Any]
+    range: [Any]
+    synonyms: [controls, regulate, control, manages, governs, adjusts]
+  uses:
+    description: The head uses or relies on the tail.
+    domain: [Any]
+    range: [Any]
+    synonyms: [utilizes, utilises, relies on, employs, uses, operates with, applies]
+  requires:
+    description: The head needs the tail.
+    domain: [Any]
+    range: [Any]
+    synonyms: [needs, depends on, demands, must have, necessitates]
+  prohibits:
+    description: The head forbids the tail.
+    domain: [Any]
+    range: [Any]
+    synonyms: [forbids, must not use, excludes, disallows, prevents use of]
+  produces:
+    description: The head produces, generates or outputs the tail.
+    domain: [Any]
+    range: [Any]
+    synonyms: [generates, outputs, creates, yields, emits]
+  measures:
+    description: The head measures or monitors the tail.
+    domain: [Any]
+    range: [Parameter, Quantity, Concept]
+    synonyms: [monitors, senses, detects, records]
+  causes:
+    description: The head causes the tail.
+    domain: [Any]
+    range: [Any]
+    synonyms: [leads to, results in, triggers, induces]
+  prevents:
+    description: The head prevents or mitigates the tail.
+    domain: [Any]
+    range: [Any]
+    synonyms: [mitigates, avoids, protects against, reduces]
+  complies_with:
+    description: The head follows or conforms to a standard or guideline.
+    domain: [Any]
+    range: [Standard, Document, Process, Concept]
+    synonyms: [follow, follows, conforms to, adheres to, meets, is compliant with, satisfies]
+  performed_by:
+    description: The process is carried out by the tail.
+    domain: [Process, Event, Concept]
+    range: [Person, Organization, System, Equipment, Software, Concept]
+    synonyms: [carried out by, executed by, conducted by, done by]
+    inverse_synonyms: [performs, carries out, executes, conducts, services, inspects, maintains]
+  computed_by:
+    description: The head is computed or derived with the tail.
+    domain: [Parameter, Quantity, Concept]
+    range: [Any]
+    synonyms: [computed with, calculated with, calculated by, derived from, computed using, determined by]
+  has_property:
+    description: The head has the tail as a property.
+    domain: [Any]
+    range: [Parameter, Concept, Material]
+    synonyms: [has attribute, has parameter, characterized by, characterised by]
+  has_value:
+    description: The parameter has the tail as its value.
+    domain: [Parameter, Concept]
+    range: [Quantity, Concept]
+    functional: true
+    synonyms: [equals, value, has value, is equal to, amounts to, rated at]
+  has_interval:
+    description: The head is serviced or inspected at the tail interval.
+    domain: [Any]
+    range: [Quantity, Concept]
+    functional: true
+    synonyms: [inspected every, serviced every, maintained every, replaced every, repeated every, interval, has interval, interval h, checked every]
+  has_status:
+    description: The head is in the tail state.
+    domain: [Any]
+    range: [Status, Concept]
+    functional: true
+    synonyms: [status, has status, state, has state, is in state]
+  located_in:
+    description: The head is located in the tail.
+    domain: [Any]
+    range: [Location, System, Equipment, Concept]
+    synonyms: [located at, situated in, installed in, found in, mounted on, positioned in]
+  described_in:
+    description: The head is described or listed in a document element.
+    domain: [Any]
+    range: [Document, Concept]
+    synonyms: [summarised in, summarized in, listed in, shown in, defined in, specified in, documented in]
+    inverse_synonyms: [describes, lists, shows, documents, defines, specifies, summarises, summarizes]
+  precedes:
+    description: The head happens before the tail.
+    domain: [Process, Event, Concept]
+    range: [Process, Event, Concept]
+    synonyms: [comes before, happens before, followed by, prior to]
+    inverse_synonyms: [comes after, follows step, happens after, preceded by]
+  authored_by:
+    description: The document was written by the tail.
+    domain: [Document, Concept]
+    range: [Person, Organization, Concept]
+    synonyms: [written by, created by, published by]
+  manufactured_by:
+    description: The head is made by the tail.
+    domain: [Component, Equipment, System, Software, Material, Concept]
+    range: [Organization, Concept]
+    synonyms: [made by, produced by, built by, supplied by]
+
+exclusive:
+  - [requires, prohibits]
+  - [causes, prevents]
