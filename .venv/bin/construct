@@ -1,4 +1,4 @@
-#!/home/bharath/Desktop/Doc_Agent/.venv/bin/python
+#!/home/bharath/Desktop/Doc_Agent/agentic_graphrag/../.venv/bin/python
 import sys
 from construction.cli import main
 if __name__ == '__main__':

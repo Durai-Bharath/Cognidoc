@@ -1,7 +1,9 @@
-# Agentic GraphRAG — Stage 1: Document Extraction · Stage 2: Graph Construction
+# Agentic GraphRAG — Stage 1: Document Extraction · Stage 2: Graph Construction · Stage 3: Retrieval
 
 > Stage 2 (knowledge-graph construction) is documented in
-> [Stage 2: Graph Construction](#stage-2-graph-construction) below.
+> [Stage 2: Graph Construction](#stage-2-graph-construction) and Stage 3 (agentic graph
+> retrieval and answering) in [Stage 3: Retrieval and Answering](#stage-3-retrieval-and-answering)
+> below. [TRACEABILITY.md](TRACEABILITY.md) maps every algorithm of all three stages to its class.
 
 Stage 1 of a three-stage Agentic GraphRAG system. It turns a PDF, DOCX or image
 (PNG/JPG/JPEG/TIFF/BMP) into three files:
@@ -90,6 +92,7 @@ python examples/run_example.py --live
 | `pip install -e ".[embeddings]"` | `embedder.provider: sentence_transformers` (code default) |
 | `pip install -e ".[ocr]"` + `sudo apt install tesseract-ocr` | real OCR for images and scanned PDFs (`ocr.engine: tesseract`) |
 | `pip install -e ".[layout]"` | `layout.backend: docling` |
+| `pip install -e ".[api]"` | Stage 3 FastAPI service (`graphrag serve`) and its tests |
 
 ## Configuration
 
@@ -198,6 +201,98 @@ GRAPHRAG_LIVE_STORES=1 NEO4J_PASSWORD=graphrag-dev make test      # also runs th
 - the community summary, per-agent traces, and export paths: `knowledge_graph.json` and
   `vector_database.json`.
 
+## Stage 3: Retrieval and Answering
+
+Stage 3 answers a question Q (optionally with conversation history) over the Stage 2 KG
+and VDB. It returns a grounded answer **A**, citations **C** (every statement mapped to
+chunk, node and edge ids, page and document), and a validation report **R**. The 15 agents
+of *Retrieval.pdf* map one class each
+([TRACEABILITY_STAGE3.md](TRACEABILITY_STAGE3.md)). Ambiguities are resolved in
+[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md#design-decisions-stage-3-graph-retrieval-and-answering).
+
+Algorithm 1 is a LangGraph `StateGraph` (`src/retrieval/graph.py`):
+
+```mermaid
+graph TD
+  cache_lookup -->|hit| generate_report
+  cache_lookup -->|miss| query_classification --> query_rewriting --> query_decomposition --> next_subquery
+  next_subquery -->|wave of ready subqueries| vector_retrieval --> graph_traversal --> community_retrieval
+  community_retrieval --> evidence_aggregation --> subquery_answers --> next_subquery
+  next_subquery -->|done| context_construction --> answer_generation --> citation_mapping --> faithfulness_validation
+  faithfulness_validation -->|valid| feedback
+  faithfulness_validation -->|invalid / always_critique| self_critique --> feedback
+  feedback -->|valid| cache_manager
+  feedback -->|invalid| retry_controller
+  retry_controller -->|retry: more k, hops, Hybrid, communities| next_subquery
+  retry_controller -->|limit reached| cache_manager --> generate_report
+```
+
+- **A1** classifies Local / Global / Hybrid / Simple Lookup. Hybrid is evaluated first,
+  which the PDF's ordering made unreachable.
+- **A2** resolves references from history, expands acronyms and fixes spelling against
+  the KG vocabulary.
+- **A3** splits complex questions into ordered subqueries. Dependencies use `{qN}`
+  placeholders that are filled with the earlier subquery's answer; independent
+  subqueries run in parallel.
+- **A4–A7** retrieve the top-k chunks and entities, traverse multi-hop paths, and rank
+  community summaries, weighted heavily for Global and lightly for Local queries. They
+  then merge, de-duplicate and rank all evidence by relevance × graph confidence.
+- **A8–A10** build a token-budgeted context of citable blocks `[E#]`, generate an answer
+  that cites them (or says "insufficient evidence"), and map every statement to its
+  chunk, node and edge ids, page and document.
+- **A11** checks every claim against its evidence and every citation id against the
+  stores. Valid ⇔ faithfulness score ≥ τ, all citations resolve, and the evidence is
+  sufficient.
+- **A12–A14** run on failure: an independent critique, bounded confidence feedback on the
+  implicated graph elements (with review flags), and a retry with escalated parameters,
+  up to `retry.max_retries`. If every attempt fails, the best attempt is returned with
+  `verified: false` and `low_confidence: true`.
+- **A15** is a semantic cache keyed by query embedding and conversation history. Only
+  verified answers are stored, and entries are invalidated when feedback or Stage 2
+  changes a cited element.
+
+### Usage
+
+```bash
+make run-example
+```
+
+That runs Stage 1 → 2 → 3 offline on the generated sample PDF, and fails unless every
+answer is verified with resolvable citations. Against a KG built by `construct`:
+
+```bash
+graphrag query "What is the inspection interval of the HCU?" --offline
+```
+
+```bash
+graphrag report rpt-<id>
+```
+
+```bash
+graphrag serve
+```
+
+`graphrag serve` exposes `POST /query` (`{"query": "...", "history": [{"role": "user",
+"content": "..."}]}`) and `GET /report/{id}`. Without `--offline`, providers come from
+`retrieval.yaml` (Azure OpenAI chat + OpenRouter embeddings, as in Stages 1–2). The query
+embedder must be the one the KG was built with.
+
+### Outputs
+
+`<paths.output_dir>/reports/<report_id>.json` (R) holds:
+
+- the answer, `verified` and `low_confidence`, the citations, and the
+  **citation-integrity proof** (one store lookup per cited id);
+- the classification, the rewritten query, the subqueries with waves and intermediate
+  answers, and the evidence per subquery;
+- the context blocks and the validation (claims, checks, score, τ);
+- every attempt (parameters, escalation, score, critique, feedback) and the retry
+  decisions;
+- cache lookup, store and invalidations;
+- the per-call agent trace (latency, tokens, score) and a per-agent summary.
+
+The cache and the feedback log sit next to the reports.
+
 ## Development
 
 ```bash
@@ -220,10 +315,12 @@ src/extraction/    agents/ (20 agents), graph.py (Alg. 1), schemas.py, output_mo
                    parsers.py, layout_models.py, image_ops.py, ocr.py, testing.py, cli.py
 src/construction/  agents/ (A1-A15), graph.py (Stage 2 Alg. 1), community.py, ontology.py,
                    stores/ (memory, neo4j, qdrant), models.py, config.py, testing.py, cli.py
+src/retrieval/     agents/ (A1-A15), graph.py (Stage 3 Alg. 1), models.py, config.py, text.py,
+                   api.py (FastAPI), cli.py + run_all.py (graphrag), testing.py
 schemas/           document / metadata / validation_report JSON Schemas (Stage 2 contract)
-tests/             common/, extraction/ and construction/ (unit per agent, graph routing, integration)
+tests/             common/, extraction/, construction/ and retrieval/ (unit per agent, graph routing, integration)
 examples/          run_example.py, run_construction_example.py
-ontology.yaml      Stage 2 ontology O;  construction.yaml: Stage 2 config;  docker-compose.yml: Neo4j + Qdrant
+ontology.yaml      Stage 2 ontology O;  construction.yaml / retrieval.yaml: Stage 2 / 3 config;  docker-compose.yml: Neo4j + Qdrant
 ```
 
 ## Known limitations
@@ -242,3 +339,8 @@ ontology.yaml      Stage 2 ontology O;  construction.yaml: Stage 2 config;  dock
 - **A chunk that fails after Graph CRUD** (in A11–A13) keeps its edges without full
   provenance or vectors. Construction Validation reports it, but nothing is rolled back
   (DESIGN_DECISIONS Stage 2 #16).
+- **Stage 3's offline answer generator is extractive.** It copies the best-matching
+  context sentence per subquestion. It drives every branch deterministically; real
+  answer quality comes from the configured LLM.
+- **Retrieval feedback lives in the KG.** A later Stage 2 Merge/Update recomputes an
+  edge's confidence from provenance, which overrides earlier feedback on that edge.

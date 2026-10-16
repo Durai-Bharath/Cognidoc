@@ -293,3 +293,166 @@ Code lives in `src/construction/`, tests in `tests/construction/`.
     ontology. Community summaries are built from the listed facts. It is deterministic,
     not good, and exists to drive every branch. `make_document()` builds schema-valid
     J/M pairs for tests.
+
+---
+
+# Design decisions (Stage 3: graph retrieval and answering)
+
+How ambiguities in *Retrieval.pdf* (Algorithms 1–16, agents A1–A15) were resolved. Item 1
+was decided in the task brief. Items 2 onward came up during implementation.
+Code lives in `src/retrieval/`, tests in `tests/retrieval/`, and the agent → class → test
+map in [TRACEABILITY_STAGE3.md](TRACEABILITY_STAGE3.md).
+
+## Decided in the brief
+
+1. **Algorithm 2's if/else makes Hybrid unreachable.** It tests "specific entity" →
+   Local first, so a query that needs both entity and thematic reasoning (and is therefore
+   entity-specific) can never reach the Hybrid branch. A1 computes two features,
+   `entity_specific` and `thematic`, and decides in this order
+   (`query_classification.decide`): both → **Hybrid**, entity only → **Local**, thematic
+   only → **Global**, neither → **Simple Lookup**. It returns the type and a confidence.
+   `test_decide_evaluates_hybrid_first` and `test_hybrid_is_reachable` pin this down.
+
+## Found during implementation
+
+2. **How A1 detects the features.** `entity_specific`: a KG entity name or alias occurs in
+   the query (word-bounded, longest first), after acronyms are expanded so "HCU" finds
+   "Hydraulic Control Unit". Otherwise a query n-gram's embedding is within
+   `classification.entity_min_similarity` of an entity. `thematic`: a cue phrase from
+   `classification.thematic_cues` ("main themes", "overall", "across" …). With
+   `classification.use_llm` the LLM sees these as hints and makes the final call. An LLM
+   error, or an answer with no confidence, keeps the heuristic. The decision rule itself is
+   always applied in code.
+3. **A2 is deterministic first, LLM second.** Pronouns (it/its/they/them/their) resolve to
+   the last KG entity in the history. Value entities (Quantity, Status, Date) are skipped,
+   because "The Valve was replaced" must resolve "it" to Valve, not to the status
+   "Replaced". Acronyms come from config, capitalised KG aliases, and "Long Form (LF)"
+   definitions mined from stored chunk texts with Stage 1's Schwartz-Hearst matcher
+   (`text.acronym_table`). Spelling correction only touches words that are not corpus
+   vocabulary (entity names, aliases, chunk text) and share no stem with it, so
+   "interval" is never "corrected" to "intervals". An LLM polish is accepted only if it
+   keeps every entity name the draft resolved.
+4. **Per-subquery loop vs. dependent subqueries.** Algorithm 1 loops only A4–A7, but a
+   subquery may need an earlier one's answer. A3 writes a placeholder `{qN}` and
+   `depends_on=[qN]` (validated: ids in order, dependencies on earlier ids only, every
+   placeholder backed by a dependency). The loop runs in dependency **waves**
+   (`Decomposition.waves`). Independent subqueries share a wave and run in parallel
+   inside each retrieval node (thread pool, one agent instance per task, because agents
+   keep per-run token usage). After A7, the `subquery_answers` node runs A8 + A9 in
+   `intermediate` mode **only for subqueries that others depend on**, and stores the
+   `short_answer` that fills the placeholders of the next wave. If that answer is
+   "insufficient evidence", the placeholder takes the earlier question's text, so the
+   dependant still retrieves around it. After the loop, A8 merges every subquery's
+   evidence once (de-duplicated across subqueries), and A9 synthesises one final answer.
+   A9 receives the resolved subquestions so it can answer each part.
+5. **Scores.** A4 hits are cosine scores. An A5 path scores seed score × Π edge
+   confidence × `path_decay`^(hops−1). Seeds are named entities (1.0), A4 entity hits, and
+   entities `MENTIONED_IN` retrieved chunks (0.8 × chunk score). A6 relevance =
+   (1−m)·cos(query, summary) + m·member overlap. A7 rank = relevance × graph confidence
+   (the brief's formula). A fact's relevance is ½·cos(query, fact) + ½·path score, and its
+   confidence is edge confidence × the endpoints' feedback-adjusted
+   `retrieval_confidence`. Community items are also multiplied by the query-type weight.
+6. **Community weighting.** `community.weights`: Global 1.0, Hybrid 0.6, Local 0.2,
+   Simple Lookup 0. Weight 0 skips A6. A6 also searches the `communities` collection
+   directly, so a Global query that names no entity still reaches the summaries. A8
+   renders communities first, then paths/facts, then chunks. Within the token budget,
+   blocks are chosen by score, so the weight decides whether summaries make it in.
+7. **Citations are evidence blocks.** A8 assigns `E1…En`. Each block carries chunk, node
+   and edge ids, the document id and title, and the page. A10 maps the `[E#]` markers in
+   each sentence to blocks; markers placed after the full stop are moved before it. An
+   uncited sentence gets the best-supporting block only when its support ≥
+   `citation.inferred_min_support`, marked `inferred`. Unknown markers are recorded.
+   Chunk citations are always Chunk nodes from the graph, never vector payloads: A4 drops
+   vectors whose node no longer exists.
+8. **Faithfulness (A11).** support(statement) = the share of the statement's stemmed
+   content terms found in a cited block; a number missing from the evidence sets it to 0.
+   grounding = supported / claims; completeness = mean share of the question's (or each
+   subquery's) terms the answer addresses; score = 0.8·grounding + 0.2·completeness.
+   **Valid ⇔ score ≥ τ (0.7), citation integrity holds, the answer is not "insufficient
+   evidence", and it makes ≥ 1 claim.** Individual unsupported claims are a *warning*
+   check; the score decides. The optional LLM judge can only turn a claim unsupported,
+   never supported. "Insufficient evidence" counts as invalid so that A14 escalates
+   retrieval: it is honest, but it is not an answer.
+9. **Citation integrity is proven, not assumed.** A11 looks up every cited chunk, node
+   and edge id in the GraphStore and records each lookup (`IntegrityCheck`: id, kind,
+   store, resolved). The report carries the full list under `citation_integrity`. A cache
+   hit is re-proven the same way before it is returned.
+10. **Self-critique (A12)** runs on validation failure, and on every answer with
+    `critique.always_critique`. Unsupported claims, unknown markers and numeric
+    contradictions (same entity, shared relation term, different numbers) are major
+    issues. LLM issues are kept only if they name an existing statement. With
+    `critique.can_invalidate` (default), a major issue downgrades a Valid answer to
+    Invalid, and that is reflected in the attempt's recorded validation. The corrected
+    answer is a suggestion recorded in the report; the retry loop, not the critique,
+    produces the next answer.
+11. **Feedback on verified answers too (A13).** Algorithm 1 calls A13 only on failure;
+    the brief asks for feedback on verified answers as well. The `feedback` node therefore
+    runs on both paths:
+    - Failure: elements behind unsupported or contradictory statements lose
+      `penalty_step` (0.1).
+    - Verified answers: elements behind supported statements gain `reward_step` (0.02).
+
+    Steps are clamped to [`floor`, `ceiling`], and a value already outside that band is
+    never moved further. Edges change `confidence`. Entity/Community confidence is derived
+    from provenance, so feedback writes `properties.retrieval_confidence`, which A7 uses.
+    Chunks and Documents (source text) are never adjusted. An element that falls below
+    `flag_below` or is penalised twice goes to the review queue. Every update is appended
+    to `paths.feedback_log`. A Stage 2 Merge/Update recomputes an edge's confidence from
+    provenance, which overrides feedback; that is deliberate, since new evidence beats
+    old feedback.
+12. **Retry (A14) and termination.** Retry *i* applies `retry.escalation[i−1]`
+    (increase_k, increase_hops, switch_to_hybrid, widen_communities), each bounded by a
+    cap. A step that would change nothing is skipped for the next one, and when no step
+    can change anything the run ends early. The workflow restarts at `next_subquery`, so
+    A4 runs next with the same subqueries and new parameters. Termination is structural:
+    the attempt counter strictly increases, `max_retries` ≤ 10, the route function
+    re-checks the hard cap, a failing A14 counts as `exhausted`, and LangGraph's
+    recursion limit is sized from these bounds. On exhaustion the best attempt (highest
+    score) is returned with `verified=false` and `low_confidence=true`, and nothing is
+    cached.
+13. **Semantic cache (A15).** Lookup happens before A1 (the brief's "check at the start").
+    An entry matches on query-embedding cosine ≥ `cache.similarity_threshold` **and the
+    same conversation-history hash**, so "what is its status?" in two conversations never
+    shares an answer. Only verified answers are stored. Each entry fingerprints every
+    cited chunk, node and edge over the content Stage 2 changes (names, text, summaries,
+    provenance and its confidences), not over what feedback reinforcement changes.
+    Invalidation therefore happens three ways:
+    - a lookup re-fingerprints and drops a stale entry, which handles Stage 2 running in
+      another process;
+    - A13 penalties invalidate the entries citing the penalised elements;
+    - `run-all` purges stale entries after construction.
+
+    The cache is a JSON file (`paths.cache_file`) with oldest-first eviction.
+14. **Graceful degradation.** Failures degrade instead of crashing:
+    - A1 failure → Hybrid (the broadest strategy).
+    - A2 failure → the original query.
+    - A3 failure → a single subquery.
+    - A failing per-subquery agent marks only that subquery.
+    - A8 failure → an empty context.
+    - A9 failure → "insufficient evidence", and the retry escalates.
+    - A10/A11 failures → an invalid status.
+    - A12/A13 failures are skipped.
+
+    Every failure is recorded in `agent_errors`.
+15. **Observability.** Every agent call records latency, token usage and a score
+    (`TraceRecord.confidence`: classification confidence, top retrieval score, faithfulness
+    score …) with `attempt`, `report` and `subquery` context. The report holds the per-call
+    trace, a per-agent summary (calls, errors, latency, tokens, mean score), every attempt
+    with its parameters, escalation, critique and feedback, and the retry decisions.
+    Reports persist as `<output_dir>/reports/<report_id>.json`, which `GET /report/{id}`
+    and `graphrag report` read. Ids are validated (`rpt-` + alphanumerics) before any file
+    access.
+16. **Interfaces.** `graphrag query/report/serve/run-all` (also `python -m retrieval`) and
+    FastAPI (`POST /query`, `GET /report/{id}`, `GET /health`; optional extra `api`). The
+    framework is not re-entrant (one trace sink per query), so the API serialises queries
+    with a lock. `run-all` chains Stage 1 → 2 → 3 on a document (default: the generated
+    sample PDF) and exits non-zero unless every answer is verified. It redirects
+    stage output to stderr so stdout stays pure JSON (PyMuPDF prints a notice).
+17. **Offline test doubles.** `retrieval.testing.offline_retrieval_llm()` echoes A1–A3's
+    rule-based hints and drafts, so the LLM code paths run. Its answer generator is
+    extractive: one best-overlapping context sentence per subquestion, cited with that
+    block's id, or "insufficient evidence" when nothing overlaps. Critique and judge find
+    no extra issues. Forced-failure tests replace the answer with a hallucination.
+    `FakeEmbedder` makes every similarity deterministic. The query embedder must be the one
+    the KG was built with: `graphrag query --offline` reads a KG made by
+    `construct --offline`.

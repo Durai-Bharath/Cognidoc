@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentic-graphrag"
 version = "0.1.0"
-description = "Agentic GraphRAG - Stage 1: agentic document extraction; Stage 2: agentic graph construction"
+description = "Agentic GraphRAG - Stage 1: document extraction; Stage 2: graph construction; Stage 3: graph retrieval and answering"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -29,6 +29,7 @@ ocr = ["pytesseract>=0.3.10"]
 layout = ["docling>=2.0"]
 graph = ["neo4j>=5.20", "qdrant-client>=1.18,<1.21"]
 leiden = ["igraph>=0.11", "leidenalg>=0.10"]
+api = ["fastapi>=0.110", "uvicorn>=0.29", "httpx>=0.27"]
 dev = [
     "pytest>=8.0",
     "ruff>=0.5",
@@ -40,6 +41,7 @@ dev = [
 [project.scripts]
 agentic-extract = "extraction.cli:main"
 construct = "construction.cli:main"
+graphrag = "retrieval.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -62,11 +64,11 @@ ignore = ["RUF001", "RUF002", "RUF003", "SIM905", "SIM108"]
 python_version = "3.11"
 strict = true
 mypy_path = "src"
-packages = ["common", "extraction", "construction"]
+packages = ["common", "extraction", "construction", "retrieval"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["cv2.*", "fitz.*", "pymupdf.*", "docx.*", "pytesseract.*", "sentence_transformers.*", "docling.*", "langgraph.*", "networkx.*", "neo4j.*", "qdrant_client.*", "igraph.*", "leidenalg.*"]
+module = ["cv2.*", "fitz.*", "pymupdf.*", "docx.*", "pytesseract.*", "sentence_transformers.*", "docling.*", "langgraph.*", "networkx.*", "neo4j.*", "qdrant_client.*", "igraph.*", "leidenalg.*", "uvicorn.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

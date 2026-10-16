@@ -1,9 +1,9 @@
 PYTHON ?= python
 
-.PHONY: install test lint typecheck format schemas example construct-example stores-up stores-down
+.PHONY: install test lint typecheck format schemas example construct-example run-example run-all serve stores-up stores-down
 
 install:
-	$(PYTHON) -m pip install -e ".[dev,llm]"
+	$(PYTHON) -m pip install -e ".[dev,llm,api]"
 
 test:
 	$(PYTHON) -m pytest
@@ -24,6 +24,17 @@ example:
 
 construct-example:
 	$(PYTHON) examples/run_construction_example.py
+
+# Stage 1 -> 2 -> 3 offline on the generated sample PDF; fails unless every answer is verified.
+run-example:
+	$(PYTHON) -m retrieval run-all --offline --out examples/output/run_all
+
+# Same chain with the providers in config.yaml / construction.yaml / retrieval.yaml.
+run-all:
+	$(PYTHON) -m retrieval run-all --out output/run_all
+
+serve:
+	$(PYTHON) -m retrieval serve
 
 stores-up:
 	docker compose up -d

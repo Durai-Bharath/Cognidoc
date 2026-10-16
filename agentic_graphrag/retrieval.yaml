@@ -1,0 +1,115 @@
+# Stage 3 (graph retrieval and answering) configuration. Every value is the documented
+# default from src/retrieval/config.py, except the providers, which match config.yaml and
+# construction.yaml for this repo: Azure OpenAI chat (deployment from
+# $AZURE_OPENAI_DEPLOYMENT) and OpenRouter embeddings. `graphrag query --offline` replaces
+# both with MockLLM + FakeEmbedder. The embedder must be the one the KG was built with.
+llm:
+  provider: azure_openai
+  model: ''
+  max_tokens: 4096
+  temperature: 0.0
+  max_retries: 3
+
+embedder:
+  provider: openrouter
+  model: liquid/lfm-2.5-embedding-350m:free
+  batch_size: 32
+  max_retries: 6
+
+stores:
+  graph_backend: memory
+  vector_backend: memory
+  neo4j_uri: bolt://localhost:7687
+  neo4j_user: neo4j
+  neo4j_database: neo4j
+  qdrant_url: http://localhost:6333
+  collection_prefix: graphrag_
+
+classification:
+  # A1: the LLM judges the features; heuristics are its hints and fallback.
+  use_llm: true
+  entity_min_similarity: 0.75
+
+rewriting:
+  use_llm: true
+  acronyms: {}
+  fuzzy_cutoff: 0.85
+  max_history_turns: 6
+
+decomposition:
+  use_llm: true
+  max_subqueries: 5
+
+vector:
+  # k: chunks per subquery (A14 raises it on retry).
+  top_k: 5
+  entity_top_k: 5
+  min_score: 0.0
+
+traversal:
+  hops: {Local: 2, Global: 1, Hybrid: 2, Simple Lookup: 0}
+  seed_min_score: 0.2
+  max_paths: 20
+  max_nodes: 60
+  path_decay: 0.85
+
+community:
+  # Community evidence weight per query type: heavy for Global, light for Local.
+  weights: {Global: 1.0, Hybrid: 0.6, Local: 0.2, Simple Lookup: 0.0}
+  top_n: 3
+  semantic_search: true
+  membership_weight: 0.3
+
+aggregation:
+  max_items: 30
+
+context:
+  token_budget: 1800
+  min_block_tokens: 24
+
+validation:
+  # τ: faithfulness score ≥ τ → Valid.
+  tau: 0.7
+  claim_support_threshold: 0.6
+  grounding_weight: 0.8
+  use_llm: false
+
+critique:
+  always_critique: false
+  use_llm: true
+  can_invalidate: true
+
+feedback:
+  penalty_step: 0.1
+  reward_step: 0.02
+  floor: 0.05
+  ceiling: 0.99
+  flag_below: 0.4
+  reinforce_verified: true
+
+retry:
+  max_retries: 3
+  escalation: [increase_k, increase_hops, switch_to_hybrid, widen_communities]
+  k_step: 5
+  max_k: 40
+  hop_step: 1
+  max_hops: 4
+  community_step: 2
+  max_communities: 10
+
+cache:
+  enabled: true
+  similarity_threshold: 0.95
+  max_entries: 500
+
+parallel_subqueries: true
+max_workers: 4
+
+paths:
+  output_dir: output/retrieval
+  state_dir: output/kg_state
+  review_queue: output/review_queue.jsonl
+  cache_file: output/retrieval/cache.json
+  feedback_log: output/retrieval/feedback.jsonl
+
+log_level: INFO
